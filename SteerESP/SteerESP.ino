@@ -38,20 +38,33 @@
   https://dronebotworkshop.com
   
 */
- 
+//--------------------------------- LIBRARIES ----------------------------------------- 
 // Include Libraries
 #include <esp_now.h>
 #include <WiFi.h>
 #include <MPU9255.h>//include MPU9255 library
- 
+
+
+
+
+
+
+//--------------------------------- INIT ----------------------------------------- 
 
 MPU9255 mpu;
 
-#define PIN_RESET_BTN  13    //right gas pedal potentiometer pin
+#define PIN_RESET_BTN  13    //right button to reset the steering angle
+#define PIN_CALIBRATE_BTN 12   //left button to calibrate the gyroscope on a flat surface.
 #define SDA  21
 #define SCL  22
 
+
+//Intialize the variables for calculations Angle of steering wheel 
 float zeroAngle = 0; //var that holds current angle of system when zeroed
+float filteredAngle = 0;    // var that holds angle of steady angle based on gyro damping 
+float gyroBias = 0; // Calibration offset 
+unsigned long lastPrintTime = 0;
+unsigned long lastTime = 0; 
  
 // MAC Address of responder - edit as required
 uint8_t broadcastAddress[] = {0x14, 0x33, 0x5C, 0x47, 0xF8, 0x80};   //mac address of the receiver (3)
@@ -75,7 +88,31 @@ void OnDataSent(const wifi_tx_info_t *info, esp_now_send_status_t status) {
   //Serial.print("\r\nLast Packet Send Status:\t");
   //Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
- 
+
+
+
+
+
+//--------------------------------- FUNCTIONS ----------------------------------------- 
+//Function to calibrate the gyroscope when it is plased on flat ground
+void calibrateGyro() {
+  long sum = 0;
+  for (int i = 0; i < 500; i++) {
+    mpu.read_gyro();
+    sum += mpu.gz;
+    delay(2);
+  }
+  gyroBias = sum / 500.0; 
+}
+
+
+
+
+
+
+
+
+//--------------------------------- SETUP ----------------------------------------- 
 void setup() {
   // Set up Serial Monitor
   Serial.begin(115200);
@@ -97,6 +134,7 @@ void setup() {
 
 
   pinMode(PIN_RESET_BTN, INPUT_PULLUP);
+  pinMode(PIN_CALIBRATE_BTN, INPUT_PULLUP);
  
   // Set ESP32 as a Wi-Fi Station
   WiFi.mode(WIFI_STA);
@@ -122,37 +160,63 @@ void setup() {
   }
 }
  
+
+
+
+
+
+//--------------------------------- LOOP ----------------------------------------- 
 void loop() {
+
+  // Timing for Integration
+  unsigned long currentTime = millis();
+  float dt = (currentTime - lastTime) / 1000.0; // Change in time in seconds
+  lastTime = currentTime;
   
-  //read data from the MPU6500
+  // read data from the MPU6500
   mpu.read_acc();//get data from the accelerometer
   mpu.read_gyro();//get data from the gyroscope
 
-  //Assign raw data values from MPU to arrays of their X,Y,Z values
+  // Assign raw data values from MPU to arrays of their X,Y,Z values
   float Accelerometer_values[3] = {mpu.ax, mpu.ay, mpu.az};
   int gyroscope_values[3] = {mpu.gx, mpu.gy, mpu.gz};
 
-  //Convert the raw data to values of G
-  for (byte I = 0; I < 3; I++){
-    Accelerometer_values[I] = Accelerometer_values[I]/16384.0;   // The scale is 2G and vary between -32,764 - 32,764 meaning 1G in raw data = 16384
-  }
+   //Convert the raw data to values of G
+   for (byte I = 0; I < 3; I++){
+     Accelerometer_values[I] = Accelerometer_values[I]/16384.0;   // The scale is 2G and vary between -32,764 - 32,764 meaning 1G in raw data = 16384
+   }
   
-  //Calc angle from MPU 0
-  float angle = atan2(Accelerometer_values[1], Accelerometer_values[0]) * 180 / PI;  // x and y values from the accelerometer. Then converts from radians to degrees
+  // Calc angle from MPU 0
+  float accAngle = (atan2(Accelerometer_values[1], Accelerometer_values[0]) * 180 / PI) + 180;  // x and y values from the accelerometer. Then converts from radians to degrees.
+                                                                                                // +180 moves the seem to the bottom of the wheel rather than having to handle negative logic in later code.
+  if (accAngle > 180) accAngle -= 360; //Move the seam to the bottom of the steeringwheel so that math is easier
+  
 
-  //Button Press Logic
+  // Get Gyro Rate (The "Fast" Motion)
+  // Scale factor for MPU6500 at 500deg/s is 65.5
+  float gyroRate = (mpu.gz - gyroBias) / 65.5;
+
+  // Filter to keep steering smooth and remove accelerometer noise
+  // New Angle = 98% of (Old Angle + Gyro change) + 2% of (Accelerometer Angle)
+  filteredAngle = 0.98 * (filteredAngle + gyroRate * dt) + 0.02 * (accAngle);
+
+
+  //------------------ Button Press Logic -------------------
+  // Button Press Logic for reset button
   if (digitalRead(PIN_RESET_BTN) == LOW){
-    zeroAngle = angle;  // zeroed angle is set to current angle
+    zeroAngle = filteredAngle;  // zeroed angle is set to current angle
+    delay(20);          //debounce delay
+  }
+
+   // Button Press Logic for reset button
+  if (digitalRead(PIN_CALIBRATE_BTN) == LOW){
+    calibrateGyro();  // zeroed angle is set to current angle
     delay(20);          //debounce delay
   }
 
   //calculate the angle from the zeroed angle
-  float correctAngle = angle - zeroAngle;
-  int steerVal = int(correctAngle);
-
-  // print the steering angle and the servo angle to the serial monitor
-  Serial.print("Angle(deg): ");
-  Serial.println(correctAngle);
+  float correctAngle = filteredAngle - zeroAngle;
+  int steerVal = (int)constrain(correctAngle, -90, 90); // Hard limit for your steering rack
 
 
   // Format structured data
@@ -166,5 +230,12 @@ void loop() {
   if (result != ESP_OK) {
     //Serial.println("Sending error");
   }
-  delay(10);
+  
+  //----- Print For Testing
+  if (millis() - lastPrintTime > 100) { // Only print every 100ms
+    Serial.print("Acc: "); Serial.print(accAngle);
+    Serial.print(" | Filtered: "); Serial.print(correctAngle);
+    Serial.print(" | Steer: "); Serial.println(steerVal);
+    lastPrintTime = millis();
+  }
 }
