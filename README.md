@@ -1,4 +1,4 @@
------------------- PROJECT DESCRIPTION -------------------------------------
+------------------------- PROJECT DESCRIPTION ------------------------------
 
 This project is a wireless control system for the Lafvin Mecanum-wheeled car 
 implementing wireless communication protocols using ESP32 microcontrollers. 
@@ -8,7 +8,7 @@ on wireless data transmission, interfacing and decoding signals from HID
 inputs, and precise motor actuation.
 
 
------------------- HARDWARE ----------------------------
+------------------------------- HARDWARE -----------------------------------
 
 - Arduino UNO
 - ESP32DevKit (3)
