@@ -116,12 +116,39 @@ void loop() {
       // driveMotors(p1, p2, s); 
     }
   }
+
 //------------ take data and actuate motor as needed -------------
 
-  Motor(Move_Forward, gasVal, gasVal, gasVal, gasVal);
+  int speedVal = gasVal - brakeVal;
+  //---- STOPPED----
+  if (speedVal == 0){
+    Motor(Stop, 0, 0, 0, 0);
+  }
+  //---- FORWARD ----
+  else if (speedVal > 0){
+    //---- STRAIGHT ----
+    if(steerAngle <= 10 && steerAngle >=-10){       // Create deadzone range of angle of steering wheel. 10 deg in each direction
+      Motor(Move_Forward, speedVal, speedVal, speedVal, speedVal);
+    }
+    //---- FWD RIGHT ----
+    else if (steerAngle > 10){
+      int outerSpeed = speedVal;
+      int innerSpeed = map(steerAngle, 10, 90, 255, 0);  //Convert the steering angle to the inner wheel speed: 10deg small turn high speed, 90deg sharp turn low speed
+      Motor(Move_Forward, outerSpeed, innerSpeed, innerSpeed, outerSpeed);   //Motors 2,3 are the right motors(inner) and 1,4 are the left motors(outer)
+    }
+    // ---- FWD LEFT ----
+    else if (steerAngle < 10){
+      int outerSpeed = speedVal;
+      int innerSpeed = map(steerAngle, -10, -90, 255, 0);  //Convert the steering angle to the inner wheel speed: 10deg small turn high speed, 90deg sharp turn low speed
+      Motor(Move_Forward, innerSpeed, outerSpeed, outerSpeed, innerSpeed);   //Motors 2,3 are the right motors(outer) and 1,4 are the left motors(inner)
+    }
+  }
+  //---- BACKWARD ----
+  else if(speedVal < 0){
+    int reverseVal = abs(speedVal);
+    Motor(Move_Backward, reverseVal, reverseVal, reverseVal, reverseVal);
+  }
       
-      
-
   
 }
 
