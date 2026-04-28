@@ -65,9 +65,10 @@ float filteredAngle = 0;    // var that holds angle of steady angle based on gyr
 float gyroBias = 0; // Calibration offset 
 unsigned long lastPrintTime = 0;
 unsigned long lastTime = 0; 
+unsigned long lastDelayPrintTime = 0;
  
 // MAC Address of responder - edit as required
-uint8_t broadcastAddress[] = {0x14, 0x33, 0x5C, 0x47, 0xF8, 0x80};   //mac address of the receiver (3)
+uint8_t broadcastAddress[] = {0x3C, 0xDC, 0x75, 0x6E, 0x90, 0x24};   //mac address of the receiver (3)
  
 // Define a data structure
 typedef struct struct_message {
@@ -225,12 +226,13 @@ void loop() {
   myData.c = 0;       // Sending no c Data
   
   // Send message via ESP-NOW
-  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
-   
-  if (result != ESP_OK) {
-    //Serial.println("Sending error");
+  if (millis() - lastDelayPrintTime > 50) { 
+    esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
+    if (result != ESP_OK) {
+      Serial.println("Sending error");
+    }
+    lastDelayPrintTime = millis();
   }
-  
   //----- Print For Testing
   if (millis() - lastPrintTime > 100) { // Only print every 100ms
     Serial.print("Acc: "); Serial.print(accAngle);
@@ -238,4 +240,6 @@ void loop() {
     Serial.print(" | Steer: "); Serial.println(steerVal);
     lastPrintTime = millis();
   }
+
+
 }

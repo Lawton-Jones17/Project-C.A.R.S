@@ -127,5 +127,5 @@ void loop() {
   if (result != ESP_OK) {
     Serial.println("Sending error");
   }
-  delay(10);
+  delay(50);
 }

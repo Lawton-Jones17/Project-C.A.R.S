@@ -18,7 +18,7 @@ HardwareSerial mySerial(1);
 
 
 
-int steeringVal = 0;
+int steerVal = 0;
 int gasVal = 0;
 int brakeVal = 0;
 
@@ -55,8 +55,10 @@ void OnDataRecv(const esp_now_recv_info_t * recv_info, const uint8_t *incomingDa
     Serial.print(" | Brake: ");       //When pushed down the Pedal is analog reading ~490-550 when unpushed reading ~3300-3400
     Serial.println(brakeVal);
   }
-  else if(strcmp(myData.a, "STEERING") == 0){
-    /////PUT STEERING WHEEL DATA IN HERE
+  else if(strcmp(myData.a, "STEER") == 0){
+    steerVal = myData.b;
+    Serial.print("Steer: ");                
+    Serial.println(steerVal);
     
   }
 }
@@ -107,7 +109,7 @@ void loop() {
   //load variables to send to arduino
   int rPedal = gasVal;
   int lPedal = brakeVal;
-  int steerAngle = steeringVal;
+  int steerAngle = steerVal;
 
   //Send data in Packets for the arduino to interpret <rPedal,lPedal,steerAngle>
   mySerial.print("<");
@@ -118,6 +120,6 @@ void loop() {
   mySerial.print(steerAngle);
   mySerial.print(">");
  
-  Serial.print("Data Sent");
+  //Serial.print("Data Sent");
   delay(50);    //50ms refresh rate for the data to send 
 }
