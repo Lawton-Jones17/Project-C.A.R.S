@@ -107,9 +107,9 @@ void setup() {
 //----------------------------------------- LOOP ------------------------------------------------
 void loop() {
   //load variables to send to arduino
-  int rPedal = gasVal;
-  int lPedal = brakeVal;
-  int steerAngle = steerVal;
+  int rPedal = gasVal;          // value 0-255, 255 is fully pressed
+  int lPedal = brakeVal;        // value 0-255, 255 is fully pressed
+  int steerAngle = steerVal;    // -90 to 90 for steering wheel. 90 deg ccw turn is -90, 90 deg cw turn is 90 
 
   //Send data in Packets for the arduino to interpret <rPedal,lPedal,steerAngle>
   mySerial.print("<");

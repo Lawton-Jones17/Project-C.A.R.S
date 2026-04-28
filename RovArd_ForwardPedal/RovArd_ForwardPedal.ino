@@ -83,6 +83,7 @@ void setup() {
   pinMode(DATA, OUTPUT);
   pinMode(DIR_EN, OUTPUT);
   pinMode(DIR_LATCH, OUTPUT);
+
   pinMode(PWM0B, OUTPUT);
   pinMode(PWM0A, OUTPUT);
   pinMode(PWM2A, OUTPUT);
@@ -116,9 +117,21 @@ void loop() {
       // driveMotors(p1, p2, s); 
     }
   }
+
+
 //------------ take data and actuate motor as needed -------------
 
-  Motor(Move_Forward, gasVal, gasVal, gasVal, gasVal);
+  int speedVal = gasVal - brakeVal;
+  if (speedVal == 0){
+    Motor(Stop, 0, 0, 0, 0);
+  }
+  else if(speedVal > 0){
+    Motor(Move_Forward, speedVal, speedVal, speedVal, speedVal);
+  }
+  else if(speedVal < 0){
+    int reverseVal = abs(speedVal);
+    Motor(Move_Backward, reverseVal, reverseVal, reverseVal, reverseVal);
+  }
       
       
 
