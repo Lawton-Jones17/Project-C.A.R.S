@@ -117,36 +117,62 @@ void loop() {
     }
   }
 
-//------------ take data and actuate motor as needed -------------
 
+//------------------ DEIVING LOGIC ------------------------------
+//------------ take data and actuate motor as needed -------------
+  const int DEADZONE_THR = 10;
+  const int SHARP_TURN_THR = 50;  
+  
   int speedVal = gasVal - brakeVal;
   //---- STOPPED----
   if (speedVal == 0){
     Motor(Stop, 0, 0, 0, 0);
   }
+
+
   //---- FORWARD ----
   else if (speedVal > 0){
-    //---- STRAIGHT ----
-    if(steerAngle <= 10 && steerAngle >=-10){       // Create deadzone range of angle of steering wheel. 10 deg in each direction
+    //---- STRAIGHT FWD ----
+    if(steerAngle <= DEADZONE_THR && steerAngle >= -DEADZONE_THR){       // Create deadzone range of angle of steering wheel. 10 deg in each direction
       Motor(Move_Forward, speedVal, speedVal, speedVal, speedVal);
     }
     //---- FWD RIGHT ----
-    else if (steerAngle > 10){
+    else if (steerAngle > DEADZONE_THR && steerAngle <= SHARP_TURN_THR){
       int outerSpeed = speedVal;
-      int innerSpeed = map(steerAngle, 10, 90, 255, 0);  //Convert the steering angle to the inner wheel speed: 10deg small turn high speed, 90deg sharp turn low speed
+      int innerSpeed = map(steerAngle, DEADZONE_THR, SHARP_TURN_THR, 255, 0);  //Convert the steering angle to the inner wheel speed: 10deg small turn high speed, 60 deg sharp turn low speed
       Motor(Move_Forward, outerSpeed, innerSpeed, innerSpeed, outerSpeed);   //Motors 2,3 are the right motors(inner) and 1,4 are the left motors(outer)
     }
-    // ---- FWD LEFT ----
-    else if (steerAngle < 10){
+    //---- ROTATE RIGHT ----
+    else if (steerAngle > SHARP_TURN_THR){
       int outerSpeed = speedVal;
-      int innerSpeed = map(steerAngle, -10, -90, 255, 0);  //Convert the steering angle to the inner wheel speed: 10deg small turn high speed, 90deg sharp turn low speed
+      int innerSpeed = map(steerAngle, SHARP_TURN_THR, 90, 0, 100);  //Convert the steering angle to the inner wheel speed: 60deg small turn no inner speed, 90deg sharp turn high BWD inner speed 
+                                                                     //(Not Max it feels to aggressive 100 is sweet spot of not too powerful but still sharp enough)
+      Motor(Right_Rotate, outerSpeed, innerSpeed, innerSpeed, outerSpeed);   //Motors 2,3 are the right motors(inner) and 1,4 are the left motors(outer)
+    }
+    // ---- FWD LEFT ----
+    else if (steerAngle < -DEADZONE_THR && steerAngle >= -SHARP_TURN_THR){
+      int outerSpeed = speedVal;
+      int innerSpeed = map(steerAngle, -DEADZONE_THR, -SHARP_TURN_THR, 255, 0);  //Convert the steering angle to the inner wheel speed: 10deg small turn high speed, 90deg sharp turn low speed
       Motor(Move_Forward, innerSpeed, outerSpeed, outerSpeed, innerSpeed);   //Motors 2,3 are the right motors(outer) and 1,4 are the left motors(inner)
     }
+    //---- ROTATE LEFT ----
+    else if (steerAngle < -SHARP_TURN_THR){
+      int outerSpeed = speedVal;
+      int innerSpeed = map(steerAngle, -SHARP_TURN_THR, -90, 0, 100);  //Convert the steering angle to the inner wheel speed: 60deg small turn no inner speed, 90deg sharp turn high BWD inner speed 
+                                                                       //(Not Max it feels to aggressive 100 is sweet spot of not too powerful but still sharp enough)
+      Motor(Left_Rotate, innerSpeed, outerSpeed, outerSpeed, innerSpeed);   //Motors 2,3 are the right motors(inner) and 1,4 are the left motors(outer)
+    }
   }
+
+
   //---- BACKWARD ----
   else if(speedVal < 0){
     int reverseVal = abs(speedVal);
-    Motor(Move_Backward, reverseVal, reverseVal, reverseVal, reverseVal);
+    //---- STRAIGHT BWD----
+    if(steerAngle <= DEADZONE_THR && steerAngle >= -DEADZONE_THR){       // Create deadzone range of angle of steering wheel. 10 deg in each direction
+      Motor(Move_Backward, reverseVal, reverseVal, reverseVal, reverseVal);
+    }
+    
   }
       
   
