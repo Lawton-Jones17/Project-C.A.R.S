@@ -1,44 +1,42 @@
 /*
- * Lawton Jones
- * University of Vermont
- * Department of Mechanical Engineering 
- * CMPE 3815: Microcontrollers
-123456789101112131415
-  // Create test data
- 
-  // Generate a random integer
-  int potVal = analogRead(PIN_POT);   //0-4095 
-  
-  // Format structured data
-  strcpy(myData.a, "RED LED:");
-  myData.b = potVal;
-  
-  // Send message via ESP-NOW
-
-
- * 14 Apr 2026
- * ESP-Now Communication
- * The purpose of this script is to trasnmit the input of a potentiometer value mapped to an LED PWM Brightness to another esp 
+ * -------------------------------------------------------------------------
+ * PROJECT: Project C.A.R.S. | Wireless Rover Control
+ * MODULE:  Steering Wheel Transmitter (IMU-based)
+ * AUTHOR:  Lawton Jones
+ * COLLEGE: University of Vermont | Dept. of Mechanical Engineering
+ * COURSE:  CMPE 3815: Microcontrollers
+ * DATE:    4 May 2026
+ * -------------------------------------------------------------------------
+ * * DESCRIPTION:
+ * This script transforms a 2 breadboard steering wheel into a wireless control 
+ * interface using an Inertial Measurement Unit (IMU). It calculates the 
+ * wheel's rotational orientation through sensor fusion and broadcasts the 
+ * steering angle to the Rover via the ESP-NOW protocol.
+ * * OPERATION LOGIC:
+ * 1. Sensor Fusion: Implements a Complementary Filter—combining 98% Gyroscope 
+ * integration (for fast motion) and 2% Accelerometer data (for long-term 
+ * stability)—to provide a smooth, drift-free angle.
+ * 2. Normalization: Shifts the coordinate seam to the bottom (180° offset) 
+ * and constrains the output to a -90° to 90° integer range.
+ * 3. User Interfacing: Includes physical button interrupts for "Zeroing" 
+ * (defining the center point) and "Calibration" (calculating Gyro bias).
+ * 4. Async Transmission: Utilizes non-interfering millis() timing to send 
+ * "STEER" data packets at 20Hz without disrupting the filter's dt integration.
+ * * HARDWARE CONFIGURATION:
+ * - MCU: ESP32 (Transmitter)
+ * - Sensor: MPU9255 (9-Axis IMU) via I2C (SDA: 21, SCL: 22)
+ * - Inputs: Reset/Zero Button (Pin 13), Calibration Button (Pin 12)
+ * - Power: 5V Power Supply Module (common ground with ESP32)
+ * - Communications: ESP-NOW (Peer-to-Peer Wireless)
+ * -------------------------------------------------------------------------
+ * SOURCES:
+ * -  https://dronebotworkshop.com  -iESP-NOW Demo - Transmit
  *
  *
- * ------------------ HARDWARE -------------------
- * 1 ESP32
- * 1 logitech pedal
-
- * 
-*/
+ */
 
 
-/*
-  iESP-NOW Demo - Transmit
-  esp-now-demo-xmit.ino
-  Sends data to Responder
-  
-  DroneBot Workshop 2022
-  https://dronebotworkshop.com
-  
-*/
-//--------------------------------- LIBRARIES ----------------------------------------- 
+//--------------------------------- LIBRARIES -------------------------------------
 // Include Libraries
 #include <esp_now.h>
 #include <WiFi.h>
@@ -48,11 +46,12 @@
 
 
 
-
 //--------------------------------- INIT ----------------------------------------- 
+MPU9255 mpu;   //init accelerometer
 
-MPU9255 mpu;
 
+
+//define the acclerometer and I2C pins
 #define PIN_RESET_BTN  13    //right button to reset the steering angle
 #define PIN_CALIBRATE_BTN 12   //left button to calibrate the gyroscope on a flat surface.
 #define SDA  21
@@ -60,19 +59,23 @@ MPU9255 mpu;
 
 
 //Intialize the variables for calculations Angle of steering wheel 
-float zeroAngle = 0; //var that holds current angle of system when zeroed
+float zeroAngle = 0;        //var that holds current angle of system when zeroed
 float filteredAngle = 0;    // var that holds angle of steady angle based on gyro damping 
-float gyroBias = 0; // Calibration offset 
+float gyroBias = 0;         // Calibration offset 
+
+// define variables for timed printing and data sending
 unsigned long lastPrintTime = 0;
 unsigned long lastTime = 0; 
 unsigned long lastDelayPrintTime = 0;
  
-// MAC Address of responder - edit as required
+// MAC Address of responder - mac address of the receiver
 uint8_t broadcastAddress[] = {0x3C, 0xDC, 0x75, 0x6E, 0x90, 0x24};   //mac address of the receiver (3)
  
-// Define a data structure
+// Define a data structure **Must be consistent between all communicating ESPs
+// char is the Transmitter Code to be recognized by receiver
+// b is the steering angle value
 typedef struct struct_message {
-  char a[32];
+  char a[32];        
   int b;
   int c;
 } struct_message;
@@ -94,8 +97,11 @@ void OnDataSent(const wifi_tx_info_t *info, esp_now_send_status_t status) {
 
 
 
-//--------------------------------- FUNCTIONS ----------------------------------------- 
-//Function to calibrate the gyroscope when it is plased on flat ground
+//------------------------------ FUNCTIONS -------------------------------------- 
+
+//---------- CALIBRATE GYRO -----------
+// Function to calibrate the gyroscope when it is placed on flat ground
+// takes the average of 500 gyro readings and assigns it to the global variable gyroBias
 void calibrateGyro() {
   long sum = 0;
   for (int i = 0; i < 500; i++) {
@@ -113,27 +119,28 @@ void calibrateGyro() {
 
 
 
-//--------------------------------- SETUP ----------------------------------------- 
+//--------------------------------- SETUP --------------------------------------- 
 void setup() {
   // Set up Serial Monitor
   Serial.begin(115200);
 
+  // begin I2C protocol on pins 16 and 17
   Wire.begin(SDA, SCL);
 
   //MPU initialization check
   if(mpu.init()){
-    Serial.println("initialization Failed");
+    Serial.println("initialization Successful");
   } else{
-    Serial.println("initialization successful!");
+    Serial.println("initialization Failed");
   }
 
-  //set the scales and bandwidht for the Accelerometer and Gyroscope
+  //set the scales and bandwidth for the Accelerometer and Gyroscope
   mpu.set_acc_scale(scale_2g);  //2g, 4g, 8g, 16g
-  mpu.set_gyro_scale(scale_500dps);
+  mpu.set_gyro_scale(scale_500dps);    //500 degrees/sec
   mpu.set_acc_bandwidth(acc_20Hz);
   mpu.set_gyro_bandwidth(gyro_20Hz); 
 
-
+  //Set button pins to inputs with pullup resistors
   pinMode(PIN_RESET_BTN, INPUT_PULLUP);
   pinMode(PIN_CALIBRATE_BTN, INPUT_PULLUP);
  
@@ -166,17 +173,17 @@ void setup() {
 
 
 
-//--------------------------------- LOOP ----------------------------------------- 
+//------------------------------------ LOOP ---------------------------------------
 void loop() {
 
   // Timing for Integration
   unsigned long currentTime = millis();
-  float dt = (currentTime - lastTime) / 1000.0; // Change in time in seconds
+  float dt = (currentTime - lastTime) / 1000.0;     // Change in time in seconds
   lastTime = currentTime;
   
   // read data from the MPU6500
-  mpu.read_acc();//get data from the accelerometer
-  mpu.read_gyro();//get data from the gyroscope
+  mpu.read_acc();      //get data from the accelerometer
+  mpu.read_gyro();     //get data from the gyroscope
 
   // Assign raw data values from MPU to arrays of their X,Y,Z values
   float Accelerometer_values[3] = {mpu.ax, mpu.ay, mpu.az};
@@ -189,7 +196,7 @@ void loop() {
   
   // Calc angle from MPU 0
   float accAngle = (atan2(Accelerometer_values[1], Accelerometer_values[0]) * 180 / PI) + 180;  // x and y values from the accelerometer. Then converts from radians to degrees.
-                                                                                                // +180 moves the seem to the bottom of the wheel rather than having to handle negative logic in later code.
+                                                                                                // +180 moves the seam to the bottom of the wheel rather than having to handle negative logic in later code.
   if (accAngle > 180) accAngle -= 360; //Move the seam to the bottom of the steeringwheel so that math is easier
   
 
@@ -206,40 +213,48 @@ void loop() {
   // Button Press Logic for reset button
   if (digitalRead(PIN_RESET_BTN) == LOW){
     zeroAngle = filteredAngle;  // zeroed angle is set to current angle
-    delay(20);          //debounce delay
+    delay(20);                  //debounce delay
   }
 
    // Button Press Logic for reset button
   if (digitalRead(PIN_CALIBRATE_BTN) == LOW){
-    calibrateGyro();  // zeroed angle is set to current angle
+    calibrateGyro();    // gyro bias is reset in order to recalibrate on flat surface
     delay(20);          //debounce delay
   }
 
   //calculate the angle from the zeroed angle
   float correctAngle = filteredAngle - zeroAngle;
-  int steerVal = (int)constrain(correctAngle, -90, 90); // Hard limit for your steering rack
+  int steerVal = (int)constrain(correctAngle, -90, 90); // Hard limit for steering angle (-90, 90) degree range
 
 
   // Format structured data
-  strcpy(myData.a, "STEER");
-  myData.b = steerVal;
+  strcpy(myData.a, "STEER");     // Message for recevier to know which data it is receiving 
+  myData.b = steerVal;           // Steering angle for the rover to interpret (-90,90) range
   myData.c = 0;       // Sending no c Data
   
-  // Send message via ESP-NOW
-  if (millis() - lastDelayPrintTime > 50) { 
+
+  // Send message via ESP-NOW every 50 ms non interfering (To prevent issues with the gyroscope filter integration)
+  if (millis() - lastDelayPrintTime > 50) {  //only send every 50ms
     esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
     if (result != ESP_OK) {
       Serial.println("Sending error");
     }
-    lastDelayPrintTime = millis();
+    lastDelayPrintTime = millis(); //reset last time of data sent
   }
-  //----- Print For Testing
+
+  //----- Print For Testing (Non-interfering)
   if (millis() - lastPrintTime > 100) { // Only print every 100ms
+    //print 3 steering values for debugging
     Serial.print("Acc: "); Serial.print(accAngle);
     Serial.print(" | Filtered: "); Serial.print(correctAngle);
     Serial.print(" | Steer: "); Serial.println(steerVal);
-    lastPrintTime = millis();
+    lastPrintTime = millis();  //reset last time of print
   }
-
-
 }
+
+
+
+
+//---------------------------------- END OF SKETCH -------------------------------------
+//---------------------------------- END OF SKETCH -------------------------------------
+//---------------------------------- END OF SKETCH -------------------------------------
