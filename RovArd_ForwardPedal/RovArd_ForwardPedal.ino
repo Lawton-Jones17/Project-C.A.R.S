@@ -150,7 +150,7 @@ void loop() {
       gasVal = mySerial.parseInt(); // Reads up to the first comma, 
       brakeVal = mySerial.parseInt(); // Reads up to the second comma
       steerAngle  = mySerial.parseInt(); // Reads up to the '>'
-
+ 
       // Print the received data on the computer serial monitor for debugging
       //Serial.print("Gas: "); Serial.print(gasVal);
       //Serial.print(" | Brake: "); Serial.print(brakeVal);
